@@ -16,7 +16,7 @@ import io
 from datetime import datetime, date
 
 from flask import (
-    Flask, request, session, redirect, url_for,
+    Flask, request, session, redirect,
     render_template_string, jsonify, flash, make_response, send_from_directory
 )
 
@@ -31,6 +31,20 @@ if getattr(sys, 'frozen', False):
 else:
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "records.db")
+APP_PREFIX = "/_apps/inventory"
+
+def app_prefix():
+    return APP_PREFIX if request.headers.get("X-Forwarded-Prefix") == APP_PREFIX else ""
+
+def app_url(path="/"):
+    if not path.startswith("/"):
+        path = "/" + path
+    return f"{app_prefix()}{path}"
+
+def app_redirect(path="/"):
+    return redirect(app_url(path))
+
+app.jinja_env.globals["app_url"] = app_url
 
 @app.route("/favicon.ico")
 def favicon():
@@ -122,18 +136,18 @@ NAV_HTML = """
     {% else %}
       <span style="background:#6B7280;color:white;padding:2px 8px;border-radius:10px;font-size:12px;">普通用户</span>
     {% endif %}
-    | <a href="/change_password">修改密码</a>
-    | <a href="/logout">退出</a>
+    | <a href="{{ app_url('/change_password') }}">修改密码</a>
+    | <a href="{{ app_url('/logout') }}">退出</a>
   </div>
 </div>
 <div class="nav">
-  <a href="/"         {% if active=='home'     %}class="active"{% endif %}>🏠 首页</a>
-  <a href="/records"  {% if active=='records'  %}class="active"{% endif %}>📋 出入库记录</a>
-  <a href="/inventory"{% if active=='inventory'%}class="active"{% endif %}>📦 库存台账</a>
-  <a href="/warnings" {% if active=='warnings' %}class="active"{% endif %}>⚠️ 低库存</a>
-  <a href="/oplog"    {% if active=='oplog'    %}class="active"{% endif %}>📜 操作日志</a>
+  <a href="{{ app_url('/') }}"         {% if active=='home'     %}class="active"{% endif %}>🏠 首页</a>
+  <a href="{{ app_url('/records') }}"  {% if active=='records'  %}class="active"{% endif %}>📋 出入库记录</a>
+  <a href="{{ app_url('/inventory') }}"{% if active=='inventory'%}class="active"{% endif %}>📦 库存台账</a>
+  <a href="{{ app_url('/warnings') }}" {% if active=='warnings' %}class="active"{% endif %}>⚠️ 低库存</a>
+  <a href="{{ app_url('/oplog') }}"    {% if active=='oplog'    %}class="active"{% endif %}>📜 操作日志</a>
   {% if session.role == 'admin' %}
-  <a href="/users"    {% if active=='users'    %}class="active"{% endif %}>👥 账号管理</a>
+  <a href="{{ app_url('/users') }}"    {% if active=='users'    %}class="active"{% endif %}>👥 账号管理</a>
   {% endif %}
 </div>
 """
@@ -267,7 +281,7 @@ INDEX_CONTENT = """
 
 <div class="card">
   <h2>📝 新增出入库记录</h2>
-  <form method="post" action="/submit">
+  <form method="post" action="{{ app_url('/submit') }}">
     <div class="form-row">
       <label>操作类型</label>
       <select name="type">
@@ -313,8 +327,8 @@ INDEX_CONTENT = """
       <td style="text-align:left;">{{ r.remark or '' }}</td>
       {% if session.role == 'admin' %}
       <td>
-        <a href="/edit_record/{{ r.id }}" class="btn btn-info btn-sm">编辑</a>
-        <a href="/delete_record/{{ r.id }}" class="btn btn-danger btn-sm" onclick="return confirm('确定删除？库存将回滚！')">删除</a>
+        <a href="{{ app_url('/edit_record/' ~ r.id) }}" class="btn btn-info btn-sm">编辑</a>
+        <a href="{{ app_url('/delete_record/' ~ r.id) }}" class="btn btn-danger btn-sm" onclick="return confirm('确定删除？库存将回滚！')">删除</a>
       </td>
       {% endif %}
     </tr>
@@ -328,7 +342,7 @@ INDEX_CONTENT = """
 RECORDS_CONTENT = """
 <div class="card">
   <h2>📋 出入库记录查询</h2>
-  <form method="get" action="/records" class="filter-bar">
+  <form method="get" action="{{ app_url('/records') }}" class="filter-bar">
     <label>起始 <input name="start" type="date" value="{{ start }}"></label>
     <label>结束 <input name="end" type="date" value="{{ end }}"></label>
     <label>类型
@@ -341,8 +355,8 @@ RECORDS_CONTENT = """
     </label>
     <label>物品 <input name="item_kw" value="{{ item_kw }}" placeholder="关键词" style="width:100px;"></label>
     <button class="btn btn-primary btn-sm">查询</button>
-    <a href="/records" class="btn btn-sm" style="background:#E0E3EF;">重置</a>
-    <a href="/export?start={{ start }}&end={{ end }}&type={{ ftype }}&item_kw={{ item_kw }}" class="btn btn-success btn-sm">📤 导出CSV</a>
+    <a href="{{ app_url('/records') }}" class="btn btn-sm" style="background:#E0E3EF;">重置</a>
+    <a href="{{ app_url('/export') }}?start={{ start }}&end={{ end }}&type={{ ftype }}&item_kw={{ item_kw }}" class="btn btn-success btn-sm">📤 导出CSV</a>
   </form>
   <table>
     <tr><th>ID</th><th>类型</th><th>物品名称</th><th>数量</th><th>操作人</th><th>日期</th><th>时间</th><th>备注</th>
@@ -359,8 +373,8 @@ RECORDS_CONTENT = """
       <td style="text-align:left;">{{ r.remark or '' }}</td>
       {% if session.role == 'admin' %}
       <td>
-        <a href="/edit_record/{{ r.id }}" class="btn btn-info btn-sm">编辑</a>
-        <a href="/delete_record/{{ r.id }}" class="btn btn-danger btn-sm" onclick="return confirm('确定删除？')">删除</a>
+        <a href="{{ app_url('/edit_record/' ~ r.id) }}" class="btn btn-info btn-sm">编辑</a>
+        <a href="{{ app_url('/delete_record/' ~ r.id) }}" class="btn btn-danger btn-sm" onclick="return confirm('确定删除？')">删除</a>
       </td>
       {% endif %}
     </tr>
@@ -384,7 +398,7 @@ INVENTORY_CONTENT = """
       <td>{{ r.warn_qty }} 件</td>
       <td>{% if r.quantity==0 %}🈳 缺货{% elif r.quantity<=r.warn_qty %}⚠️ 预警{% else %}✅ 充足{% endif %}</td>
       {% if session.role == 'admin' %}
-      <td><a href="/edit_inventory?item={{ r.item_name|urlencode }}" class="btn btn-warning btn-sm">修改</a></td>
+      <td><a href="{{ app_url('/edit_inventory') }}?item={{ r.item_name|urlencode }}" class="btn btn-warning btn-sm">修改</a></td>
       {% endif %}
     </tr>
     {% else %}
@@ -395,7 +409,7 @@ INVENTORY_CONTENT = """
 
 <div class="card">
   <h2>⚙️ 预警阈值设置</h2>
-  <form method="post" action="/set_warn" class="filter-bar">
+  <form method="post" action="{{ app_url('/set_warn') }}" class="filter-bar">
     <label>物品 <input name="item_name" list="ilist" required style="width:160px;"></label>
     <datalist id="ilist">{% for r in inventory %}<option value="{{ r.item_name }}">{% endfor %}</datalist>
     <label>阈值 <input name="warn_qty" type="number" min="0" value="5" style="width:80px;" required></label>
@@ -450,7 +464,7 @@ USERS_CONTENT = """
   <p style="color:#6B7280;font-size:13px;margin-bottom:12px;">
     管理员：全部权限 | 普通用户：仅出入库
   </p>
-  <form method="post" action="/add_user" class="filter-bar">
+  <form method="post" action="{{ app_url('/add_user') }}" class="filter-bar">
     <label>用户名 <input name="username" required style="width:110px;"></label>
     <label>密码 <input name="password" type="password" required style="width:110px;"></label>
     <label>角色
@@ -468,10 +482,10 @@ USERS_CONTENT = """
           {% else %}<span style="background:#6B7280;color:white;padding:2px 8px;border-radius:10px;font-size:12px;">普通用户</span>{% endif %}</td>
       <td>
         {% if u.username != 'admin' and u.username != session.user %}
-        <a href="/toggle_role?uid={{ u.id }}" class="btn btn-warning btn-sm" onclick="return confirm('切换角色？')">切换</a>
-        <a href="/delete_user?uid={{ u.id }}" class="btn btn-danger btn-sm" onclick="return confirm('删除用户？')">删除</a>
+        <a href="{{ app_url('/toggle_role') }}?uid={{ u.id }}" class="btn btn-warning btn-sm" onclick="return confirm('切换角色？')">切换</a>
+        <a href="{{ app_url('/delete_user') }}?uid={{ u.id }}" class="btn btn-danger btn-sm" onclick="return confirm('删除用户？')">删除</a>
         {% endif %}
-        <a href="/reset_password?uid={{ u.id }}" class="btn btn-info btn-sm">重置密码</a>
+        <a href="{{ app_url('/reset_password') }}?uid={{ u.id }}" class="btn btn-info btn-sm">重置密码</a>
       </td>
     </tr>
     {% endfor %}
@@ -482,13 +496,13 @@ USERS_CONTENT = """
 EDIT_RECORD_CONTENT = """
 <div class="card" style="max-width:500px;">
   <h2>✏️ 编辑记录 ID={{ r.id }}</h2>
-  <form method="post" action="/edit_record/{{ r.id }}">
+  <form method="post" action="{{ app_url('/edit_record/' ~ r.id) }}">
     <div class="form-row"><label>物品</label><input name="item_name" value="{{ r.item_name }}" required></div>
     <div class="form-row"><label>数量</label><input name="quantity" type="number" min="1" value="{{ r.quantity }}" required></div>
     <div class="form-row"><label>操作人</label><input name="operator" value="{{ r.operator }}" required></div>
     <div class="form-row"><label>备注</label><input name="remark" value="{{ r.remark or '' }}"></div>
     <p style="color:#E84B4B;font-size:13px;">⚠️ 修改将自动回滚旧库存并应用新库存</p>
-    <div class="form-row"><button class="btn btn-primary">保存</button> <a href="/records" style="margin-left:8px;">取消</a></div>
+    <div class="form-row"><button class="btn btn-primary">保存</button> <a href="{{ app_url('/records') }}" style="margin-left:8px;">取消</a></div>
   </form>
 </div>
 """
@@ -540,23 +554,23 @@ def login_page():
         if role:
             session["user"] = username
             session["role"] = role
-            return redirect("/")
+            return app_redirect("/")
         flash("用户名或密码错误！", "danger")
     return render_page(LOGIN_CONTENT, title="登录", active="")
 
 @app.route("/logout")
 def logout():
     session.clear()
-    return redirect("/login")
+    return app_redirect("/login")
 
 def login_required():
     if "user" not in session:
-        return redirect("/login")
+        return app_redirect("/login")
 
 @app.route("/")
 def index():
     if "user" not in session:
-        return redirect("/login")
+        return app_redirect("/login")
     today = date.today().strftime("%Y-%m-%d")
     conn = get_db()
     stats_row = conn.execute(
@@ -582,7 +596,7 @@ def index():
 @app.route("/submit", methods=["POST"])
 def submit_record():
     if "user" not in session:
-        return redirect("/login")
+        return app_redirect("/login")
     rec_type  = request.form.get("type", "入库")
     item_name = request.form.get("item_name", "").strip()
     operator  = request.form.get("operator", session["user"]).strip()
@@ -592,10 +606,10 @@ def submit_record():
         assert quantity > 0
     except:
         flash("数量必须是正整数！", "danger")
-        return redirect("/")
+        return app_redirect("/")
     if not item_name:
         flash("请填写物品名称！", "danger")
-        return redirect("/")
+        return app_redirect("/")
     now = datetime.now()
     dt, tm = now.strftime("%Y-%m-%d"), now.strftime("%H:%M:%S")
     conn = get_db()
@@ -609,13 +623,13 @@ def submit_record():
         if row is None and rec_type != "退货":
             flash("库存不足或物品不存在！", "danger")
             conn.close()
-            return redirect("/")
+            return app_redirect("/")
         elif row is None:
             c.execute("INSERT INTO inventory (item_name,quantity,warn_qty) VALUES (?,?,5)", (item_name, quantity))
         elif row[0] + delta < 0:
             flash("库存不足，无法操作！", "danger")
             conn.close()
-            return redirect("/")
+            return app_redirect("/")
         else:
             c.execute("UPDATE inventory SET quantity=quantity+? WHERE item_name=?", (delta, item_name))
     c.execute("INSERT INTO records (type,item_name,quantity,operator,record_date,record_time,remark) VALUES (?,?,?,?,?,?,?)",
@@ -625,12 +639,12 @@ def submit_record():
     conn.commit()
     conn.close()
     flash(f"✅ {rec_type}成功！{item_name} {quantity}件", "success")
-    return redirect("/")
+    return app_redirect("/")
 
 @app.route("/records")
 def records():
     if "user" not in session:
-        return redirect("/login")
+        return app_redirect("/login")
     start   = request.args.get("start", date.today().strftime("%Y-%m-%d"))
     end     = request.args.get("end",   date.today().strftime("%Y-%m-%d"))
     ftype   = request.args.get("type", "")
@@ -656,7 +670,7 @@ def records():
 @app.route("/inventory")
 def inventory():
     if "user" not in session:
-        return redirect("/login")
+        return app_redirect("/login")
     conn = get_db()
     inventory = conn.execute("SELECT item_name,quantity,warn_qty FROM inventory ORDER BY item_name").fetchall()
     conn.close()
@@ -666,7 +680,7 @@ def inventory():
 @app.route("/warnings")
 def warnings():
     if "user" not in session:
-        return redirect("/login")
+        return app_redirect("/login")
     conn = get_db()
     items = conn.execute("SELECT item_name,quantity,warn_qty FROM inventory WHERE quantity <= warn_qty ORDER BY quantity ASC").fetchall()
     conn.close()
@@ -676,7 +690,7 @@ def warnings():
 @app.route("/oplog")
 def oplog():
     if "user" not in session:
-        return redirect("/login")
+        return app_redirect("/login")
     conn = get_db()
     logs = conn.execute("SELECT action,detail,oplog_date,oplog_time FROM oplog ORDER BY id DESC LIMIT 50").fetchall()
     conn.close()
@@ -687,7 +701,7 @@ def oplog():
 def edit_record(rid):
     if "user" not in session or session["role"] != "admin":
         flash("需要管理员权限！", "danger")
-        return redirect("/records")
+        return app_redirect("/records")
     conn = get_db()
     if request.method == "POST":
         new_item = request.form.get("item_name", "").strip()
@@ -711,12 +725,12 @@ def edit_record(rid):
             conn.commit()
             flash("✅ 记录已更新！", "success")
         conn.close()
-        return redirect("/records")
+        return app_redirect("/records")
     r = conn.execute("SELECT id,type,item_name,quantity,operator,remark FROM records WHERE id=?", (rid,)).fetchone()
     conn.close()
     if not r:
         flash("记录不存在！", "danger")
-        return redirect("/records")
+        return app_redirect("/records")
     content = render_template_string(EDIT_RECORD_CONTENT, r=r)
     return render_page(content, active="records")
 
@@ -724,7 +738,7 @@ def edit_record(rid):
 def delete_record(rid):
     if "user" not in session or session["role"] != "admin":
         flash("需要管理员权限！", "danger")
-        return redirect("/records")
+        return app_redirect("/records")
     conn = get_db()
     row = conn.execute("SELECT type,item_name,quantity FROM records WHERE id=?", (rid,)).fetchone()
     if row:
@@ -738,19 +752,19 @@ def delete_record(rid):
         conn.commit()
         flash("✅ 已删除，库存已回滚", "success")
     conn.close()
-    return redirect(request.referrer or "/records")
+    return redirect(request.referrer or app_url("/records"))
 
 @app.route("/edit_inventory", methods=["GET", "POST"])
 def edit_inventory():
     if "user" not in session or session["role"] != "admin":
         flash("需要管理员权限！", "danger")
-        return redirect("/inventory")
+        return app_redirect("/inventory")
     item = request.args.get("item") or request.form.get("item_name", "")
     conn = get_db()
     cur = conn.execute("SELECT quantity FROM inventory WHERE item_name=?", (item,)).fetchone()
     if not cur:
         flash("物品不存在！", "danger")
-        return redirect("/inventory")
+        return app_redirect("/inventory")
     cur_qty = cur["quantity"]
     if request.method == "POST":
         new_qty = int(request.form.get("new_qty", cur_qty))
@@ -761,7 +775,7 @@ def edit_inventory():
         conn.commit()
         flash(f"✅ 库存已更新为 {new_qty} 件", "success")
         conn.close()
-        return redirect("/inventory")
+        return app_redirect("/inventory")
     conn.close()
     content = render_template_string(EDIT_INV_CONTENT, item=item, cur_qty=cur_qty)
     return render_page(content, active="inventory")
@@ -769,7 +783,7 @@ def edit_inventory():
 @app.route("/set_warn", methods=["POST"])
 def set_warn():
     if "user" not in session:
-        return redirect("/login")
+        return app_redirect("/login")
     item_name = request.form.get("item_name", "").strip()
     try:
         warn_qty = int(request.form.get("warn_qty", 5))
@@ -781,12 +795,12 @@ def set_warn():
         conn.commit()
         conn.close()
         flash(f"✅ 「{item_name}」预警阈值设为 {warn_qty}", "success")
-    return redirect("/inventory")
+    return app_redirect("/inventory")
 
 @app.route("/export")
 def export_csv():
     if "user" not in session:
-        return redirect("/login")
+        return app_redirect("/login")
     try:
         start   = request.args.get("start", "")
         end     = request.args.get("end", "")
@@ -821,13 +835,13 @@ def export_csv():
         return resp
     except Exception as e:
         flash(f"导出失败：{e}", "danger")
-        return redirect("/records")
+        return app_redirect("/records")
 
 @app.route("/users")
 def user_manage():
     if "user" not in session or session["role"] != "admin":
         flash("需要管理员权限！", "danger")
-        return redirect("/")
+        return app_redirect("/")
     conn = get_db()
     users = conn.execute("SELECT id,username,role FROM users ORDER BY id").fetchall()
     conn.close()
@@ -837,13 +851,13 @@ def user_manage():
 @app.route("/add_user", methods=["POST"])
 def add_user():
     if "user" not in session or session["role"] != "admin":
-        return redirect("/login")
+        return app_redirect("/login")
     username = request.form.get("username", "").strip()
     password = request.form.get("password", "")
     role     = request.form.get("role", "user")
     if not username or not password:
         flash("用户名和密码不能为空！", "danger")
-        return redirect("/users")
+        return app_redirect("/users")
     try:
         conn = get_db()
         conn.execute("INSERT INTO users (username,password,role) VALUES (?,?,?)", (username, _hash(password), role))
@@ -852,12 +866,12 @@ def add_user():
         flash(f"✅ 用户「{username}」已添加！", "success")
     except Exception as e:
         flash(f"添加失败：{e}", "danger")
-    return redirect("/users")
+    return app_redirect("/users")
 
 @app.route("/toggle_role")
 def toggle_role():
     if "user" not in session or session["role"] != "admin":
-        return redirect("/login")
+        return app_redirect("/login")
     uid = request.args.get("uid", type=int)
     conn = get_db()
     u = conn.execute("SELECT username,role FROM users WHERE id=?", (uid,)).fetchone()
@@ -867,12 +881,12 @@ def toggle_role():
         conn.commit()
         flash(f"✅ 已切换为{'管理员' if new_role=='admin' else '普通用户'}", "success")
     conn.close()
-    return redirect("/users")
+    return app_redirect("/users")
 
 @app.route("/delete_user")
 def delete_user():
     if "user" not in session or session["role"] != "admin":
-        return redirect("/login")
+        return app_redirect("/login")
     uid = request.args.get("uid", type=int)
     conn = get_db()
     u = conn.execute("SELECT username FROM users WHERE id=?", (uid,)).fetchone()
@@ -881,34 +895,34 @@ def delete_user():
         conn.commit()
         flash(f"✅ 用户「{u['username']}」已删除", "success")
     conn.close()
-    return redirect("/users")
+    return app_redirect("/users")
 
 @app.route("/reset_password", methods=["GET", "POST"])
 def reset_password():
     if "user" not in session or session["role"] != "admin":
-        return redirect("/login")
+        return app_redirect("/login")
     uid = request.args.get("uid", type=int)
     conn = get_db()
     u = conn.execute("SELECT username FROM users WHERE id=?", (uid,)).fetchone()
     if not u:
         flash("用户不存在！", "danger")
-        return redirect("/users")
+        return app_redirect("/users")
     if request.method == "POST":
         new_pw = request.form.get("new_pw", "")
         cfm_pw = request.form.get("cfm_pw", "")
         if len(new_pw) < 4:
             flash("密码至少4位！", "danger")
             conn.close()
-            return redirect(f"/reset_password?uid={uid}")
+            return app_redirect(f"/reset_password?uid={uid}")
         if new_pw != cfm_pw:
             flash("两次密码不一致！", "danger")
             conn.close()
-            return redirect(f"/reset_password?uid={uid}")
+            return app_redirect(f"/reset_password?uid={uid}")
         conn.execute("UPDATE users SET password=? WHERE id=?", (_hash(new_pw), uid))
         conn.commit()
         flash(f"✅ 「{u['username']}」密码已重置", "success")
         conn.close()
-        return redirect("/users")
+        return app_redirect("/users")
     conn.close()
     content = render_template_string(RESET_PW_CONTENT, username=u["username"])
     return render_page(content, active="users")
@@ -916,7 +930,7 @@ def reset_password():
 @app.route("/change_password", methods=["GET", "POST"])
 def change_password():
     if "user" not in session:
-        return redirect("/login")
+        return app_redirect("/login")
     if request.method == "POST":
         old_pw = request.form.get("old_pw", "")
         new_pw = request.form.get("new_pw", "")
@@ -926,20 +940,20 @@ def change_password():
         if not u or u["password"] != _hash(old_pw):
             flash("当前密码不正确！", "danger")
             conn.close()
-            return redirect("/change_password")
+            return app_redirect("/change_password")
         if len(new_pw) < 4:
             flash("新密码至少4位！", "danger")
             conn.close()
-            return redirect("/change_password")
+            return app_redirect("/change_password")
         if new_pw != cfm_pw:
             flash("两次密码不一致！", "danger")
             conn.close()
-            return redirect("/change_password")
+            return app_redirect("/change_password")
         conn.execute("UPDATE users SET password=? WHERE username=?", (_hash(new_pw), session["user"]))
         conn.commit()
         conn.close()
         flash("✅ 密码已修改，下次登录生效！", "success")
-        return redirect("/")
+        return app_redirect("/")
     content = render_template_string(CHANGE_PW_CONTENT)
     return render_page(content, active="home")
 
