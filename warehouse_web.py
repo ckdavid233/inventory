@@ -17,7 +17,7 @@ from datetime import datetime, date
 
 from flask import (
     Flask, request, session, redirect, url_for,
-    render_template_string, jsonify, flash, make_response
+    render_template_string, jsonify, flash, make_response, send_from_directory
 )
 
 # ─────────────────────────────────────────────
@@ -31,6 +31,10 @@ if getattr(sys, 'frozen', False):
 else:
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "records.db")
+
+@app.route("/favicon.ico")
+def favicon():
+    return send_from_directory(BASE_DIR, "favicon.ico", mimetype="image/vnd.microsoft.icon")
 
 # ─────────────────────────────────────────────
 # 数据库工具
