@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 出入库管理系统 - Web 版
-基于 Flask，单文件部署，监听 0.0.0.0:8523
+基于 Flask，单文件部署，监听 0.0.0.0:8517
 数据库复用 warehouse_app/records.db
 依赖: flask, sqlite3 (内置)
 """
@@ -946,7 +946,7 @@ if __name__ == "__main__":
     init_db()
     print("=" * 50)
     print("  出入库管理系统 Web 版")
-    print("  访问: http://0.0.0.0:8525")
+    print("  访问: http://0.0.0.0:8517")
     print("  默认: admin / admin123")
     print("=" * 50)
-    app.run(host="0.0.0.0", port=8525, debug=False, threaded=True)
+    app.run(host="0.0.0.0", port=8517, debug=False, threaded=True)
